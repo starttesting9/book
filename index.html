@@ -556,8 +556,8 @@ function render(items, append = false) {
 
     div.innerHTML = `
       <div class="name">${item.pib}</div>
-      <div>Посада: ${item.posada}</div>
-      <div>Підрозділ: ${item.pidrozdil}</div>
+      <div>${FIELD_LABELS['f12']}: ${item.f12}</div>
+      <div>${FIELD_LABELS['f13']}: ${item.f13}</div>
       <div class="status" data-status="${item.status}">
         ${STATUS_LABELS[item.status] || item.status}
       </div>
