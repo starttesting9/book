@@ -673,7 +673,7 @@ searchInput.addEventListener('input', e => {
   const lower = val.toLowerCase();
 
   currentData = data.filter(item =>
-    (item.pib + item.posada + item.pidrozdil + item.status)
+    (item.pib + item.f12 + item.f13 + item.status)
       .toLowerCase()
       .includes(lower)
   );
