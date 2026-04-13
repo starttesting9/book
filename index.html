@@ -395,12 +395,17 @@ function renderMarksChart(counts) {
 
   const max = Math.max(...Object.values(counts), 1);
 
+  // 🔥 створюємо 1 раз
+  const MARKS_MAP = Object.fromEntries(
+    MARKS.map(m => [m.key, m.label])
+  );
+
   container.innerHTML = Object.entries(counts)
     .map(([key, val]) => {
       const percent = (val / max) * 100;
-  
-      const label = MARKS.find(m => m.key === key)?.label || key;
-  
+
+      const label = MARKS_MAP[key] || key;
+
       return `
         <div style="margin-bottom:6px;">
           <div style="font-size:12px;">${label} (${val})</div>
