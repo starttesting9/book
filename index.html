@@ -370,7 +370,7 @@ function handleCredentialResponse(response) {
 }
 
 function updateMarksChart(items) {
-  const target = MARKS;
+  const target = MARKS.map(m => m.key);
 
   const counts = Object.fromEntries(
     target.map(t => [t, 0])
@@ -398,10 +398,12 @@ function renderMarksChart(counts) {
   container.innerHTML = Object.entries(counts)
     .map(([key, val]) => {
       const percent = (val / max) * 100;
-
+  
+      const label = MARKS.find(m => m.key === key)?.label || key;
+  
       return `
         <div style="margin-bottom:6px;">
-          <div style="font-size:12px;">${key} (${val})</div>
+          <div style="font-size:12px;">${label} (${val})</div>
           <div style="
             height:8px;
             background:#eee;
