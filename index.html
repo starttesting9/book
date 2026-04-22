@@ -601,7 +601,7 @@ function buildDetailsHTML(item) {
   return finalKeys.map(k => {
     const rawValue = data[k];
     let v = highlightSZCH(rawValue);
-    v = highlightTVO(k, v);
+    v = rawValue;
 
     if (v === null || v === undefined || v === '') return '';
 
