@@ -434,12 +434,6 @@ function highlightSZCH(text) {
   });
 }
 
-function highlightTVO(key, value) {
-  if (key !== 'ТВО') return value;
-
-  return `<span style="color:#2ecc71; font-weight:600;">${value}</span>`;
-}
-
 function copyText(text) {
   navigator.clipboard.writeText(text);
   showToast('Скопійовано');
@@ -601,16 +595,19 @@ function buildDetailsHTML(item) {
   return finalKeys.map(k => {
     const rawValue = data[k];
     let v = highlightSZCH(rawValue);
-    v = rawValue;
 
     if (v === null || v === undefined || v === '') return '';
 
     // const displayKey = k.replace(/\r?\n/g, ' ');
     const displayKey = (FIELD_LABELS[k] || k).replace(/\r?\n/g, ' ');
 
+    const keyHTML = k === 'ТВО'
+      ? `<span class="detail-key" style="color:#2ecc71; font-weight:bold;">${displayKey}</span>`
+      : `<span class="detail-key">${displayKey}</span>`;
+
     return `
       <div class="detail-row">
-        <span class="detail-key">${displayKey}</span>
+        <span class="detail-key">${keyHTML}</span>
         <div class="detail-value">
           <span class="copy-text">${v}</span>
           <button class="copy-btn" data-text="${encodeURIComponent(rawValue)}">
