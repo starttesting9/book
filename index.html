@@ -395,7 +395,6 @@ function renderMarksChart(counts) {
 
   const max = Math.max(...Object.values(counts), 1);
 
-  // 🔥 створюємо 1 раз
   const MARKS_MAP = Object.fromEntries(
     MARKS.map(m => [m.key, m.label])
   );
@@ -433,6 +432,12 @@ function highlightSZCH(text) {
   return String(text).replace(/(^|[^а-яіїєґa-z])(сзч)(?=[^а-яіїєґa-z]|$)/gi, (match, p1, p2) => {
     return `${p1}<span style="color:red; font-weight:bold;">${p2}</span>`;
   });
+}
+
+function highlightTVO(key, value) {
+  if (key !== 'ТВО') return value;
+
+  return `<span style="color:#2ecc71; font-weight:600;">${value}</span>`;
 }
 
 function copyText(text) {
@@ -595,7 +600,8 @@ function buildDetailsHTML(item) {
 
   return finalKeys.map(k => {
     const rawValue = data[k];
-    const v = highlightSZCH(rawValue);
+    let v = highlightSZCH(rawValue);
+    v = highlightTVO(k, v);
 
     if (v === null || v === undefined || v === '') return '';
 
