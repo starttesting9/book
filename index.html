@@ -148,10 +148,39 @@ input {
  box-shadow:0 2px 5px rgba(0,0,0,0.1);
  width: calc(100% - 20px);
  box-sizing: border-box;
+ position: relative;
 }
 
 .card div {
   margin:2px 0;
+}
+
+.card-label {
+  position: static;
+  top: 8px;
+  right: 10px;
+  background: #ecf0f1;
+  color: #2c3e50;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  max-width: 70%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.card-label.szch {
+  background: #e74c3c;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .scroll-top {
@@ -181,7 +210,7 @@ input {
   width: 100%;
 }
 
-.name { font-size:17px; font-weight:bold; margin-bottom:2px;}
+.name { font-size:17px; font-weight:bold; margin-bottom:2px; flex: 1; word-break: break-word;}
 
 .status { margin-top:5px; font-weight:bold; }
 .status[data-status="A1"] { color:green; }
@@ -367,6 +396,27 @@ function handleCredentialResponse(response) {
   document.getElementById('loader').style.display = 'flex';
 
   loadData(response.credential);
+}
+
+function getCardLabel(item) {
+  const raw =
+    item?.all?.['f11'] ||
+    item?.all?.['статус'];
+
+  if (!raw) return '';
+
+  const str = String(raw).trim();
+
+  const maxLen = 10;
+
+  const text = str.length > maxLen
+    ? str.slice(0, maxLen) + '...'
+    : str;
+
+  return {
+    text,
+    isSZCH: str.toLowerCase().includes('сзч')
+  };
 }
 
 function updateMarksChart(items) {
@@ -559,23 +609,31 @@ function render(items, append = false) {
     const div = document.createElement('div');
     div.className = 'card';
     div.dataset.index = currentData.indexOf(item);
+    const labelData = getCardLabel(item);
 
     div.innerHTML = `
-      <div class="name">${item.pib}</div>
+      <div class="card-header">
+        <div class="name">${item.pib}</div>
+        ${labelData ? `
+          <div class="card-label ${labelData.isSZCH ? 'szch' : ''}">
+            ${labelData.text}
+          </div>
+        ` : ''}
+      </div>
+    
       <div>${FIELD_LABELS['f12']}: ${item.f12}</div>
       <div>${FIELD_LABELS['f13']}: ${item.f13}</div>
       <div class="status" data-status="${item.status}">
         ${STATUS_LABELS[item.status] || item.status}
       </div>
-
+    
       <div style="display:flex; gap:10px;">
         <button onclick="toggle(this)">Детальніше</button>
         <button class="copy-all-btn" style="display:none;">📋 Копіювати</button>
       </div>
-
+    
       <div class="details"></div>
     `;
-
     list.appendChild(div);
   });
 }
@@ -607,7 +665,7 @@ function buildDetailsHTML(item) {
 
     return `
       <div class="detail-row">
-        <span class="detail-key">${keyHTML}</span>
+        ${keyHTML}
         <div class="detail-value">
           <span class="copy-text">${v}</span>
           <button class="copy-btn" data-text="${encodeURIComponent(rawValue)}">
