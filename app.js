@@ -449,10 +449,11 @@ function buildDetailsHTML(item) {
   return finalKeys.map(k => {
     const rawValue = data[k];
     let v = highlightSZCH(rawValue);
-
+    
     if (v === null || v === undefined || v === '') return '';
+    
+    v = String(v).replace(/\r?\n/g, '<br>');
 
-    // const displayKey = k.replace(/\r?\n/g, ' ');
     const displayKey = (FIELD_LABELS[k] || k).replace(/\r?\n/g, ' ');
 
     const keyHTML = k === 'ТВО'
@@ -775,3 +776,33 @@ scrollBtn.addEventListener('click', () => {
     behavior: 'smooth'
   });
 });
+
+function initTheme(){
+  const btn = document.getElementById('themeToggle');
+  if (!btn) return;
+
+  const root = document.documentElement;
+  const saved = localStorage.getItem('theme') || 'light';
+
+  root.classList.toggle(
+    'dark',
+    saved === 'dark'
+  );
+
+  btn.textContent =
+    saved === 'dark' ? '☀️' : '🌙';
+
+  btn.onclick = () => {
+    const dark =
+      root.classList.toggle('dark');
+
+    localStorage.setItem(
+      'theme',
+      dark ? 'dark' : 'light'
+    );
+
+    btn.textContent =
+      dark ? '☀️' : '🌙';
+  };
+}
+initTheme();
