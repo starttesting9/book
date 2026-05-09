@@ -1,5 +1,6 @@
 let data = [];
 let currentData = [];
+let authToken = '';
 let visibleCount = 30;
 let STATUS_LABELS = {};
 let FIELD_LABELS = {};
@@ -51,7 +52,8 @@ function handleCredentialResponse(response) {
 
   document.getElementById('loader').style.display = 'flex';
 
-  loadData(response.credential);
+  authToken = response.credential;
+  loadData(authToken);
 }
 
 function showError(title, text='') {
@@ -158,8 +160,14 @@ function renderBirthdays(items) {
   const todayHTML = today.length ? `
   <div class="today-block ui-today">
 
-    <div class="today-title">
-      🥳 Сьогодні (${today.length})
+    <div class="today-title-row">
+      <div class="today-title">
+        🥳 Сьогодні (${today.length})
+      </div>
+    
+      <div class="today-date">
+        ${window.todayDateShort}
+      </div>
     </div>
 
     <div class="today-list ui-list">
@@ -183,8 +191,17 @@ function renderBirthdays(items) {
 
   </div>
 ` : `
-  <div class="today-empty">
-    Сьогодні немає 🎉
+  <div class="today-block ui-today">
+
+    <div class="today-title-row">
+      <div class="today-title">
+        Сьогодні немає 🎉
+      </div>
+
+      <div class="today-date">
+        ${window.todayDateShort}
+      </div>
+    </div>
   </div>
 `;
 
@@ -386,6 +403,12 @@ function render(items, append = false) {
   }
 
   items.forEach((item) => {
+    if (item.ordersLoaded === undefined) {
+      item.ordersLoaded = false;
+      item.ordersLoading = false;
+      item.orders = [];
+      item.view = 'details';
+    }
     const div = document.createElement('div');
     div.className = 'card';
     div.dataset.index = currentData.indexOf(item);
@@ -421,11 +444,18 @@ function render(items, append = false) {
         ${STATUS_LABELS[item.status] || item.status}
       </div>
     
-      <div style="display:flex; gap:10px;">
-        <button class="action-btn" onclick="toggle(this)">
+      <div class="button-group">
+        <button class="action-btn" onclick="toggle(this, 'details')">
           Детальніше
         </button>
-        <button class="copy-all-btn" style="display:none;">📋 Копіювати</button>
+      
+        <button class="action-btn orders-btn" onclick="toggle(this, 'orders')">
+          📄 Стройові${item.ordersLoaded ? ` (${item.orders.length})` : ''}
+        </button>
+      
+        <button class="copy-all-btn" style="display:none;">
+          📋 Копіювати
+        </button>
       </div>
     
       <div class="details"></div>
@@ -478,7 +508,116 @@ function getSearchCount() {
   return document.getElementById('searchCount');
 }
 
-function toggle(btn) {
+function renderOrdersHTML(orders) {
+  if (!orders || !orders.length) {
+    return `
+      <div class="orders-empty">
+        📭 Дані по стройових наказах відсутні
+      </div>
+    `;
+  }
+
+  return `
+    <div class="orders-list">
+      ${orders.map(order => `
+        <div class="order-card">
+          <div class="order-head">
+
+            ${
+              order.file?.url
+                ? `
+                  <a
+                    href="${order.file.url}"
+                    target="_blank"
+                    class="order-link"
+                    title="Відкрити файл наказу"
+                  >
+                    📄 Наказ №${order.orderNumber}
+                    <span class="order-link-icon">↗</span>
+                  </a>
+                `
+                : `
+                  <span>📄 Наказ №${order.orderNumber}</span>
+                `
+            }
+
+            <div class="order-right">
+              <span>${order.date}</span>
+
+              <button
+                class="copy-btn order-copy-btn"
+                data-order="${encodeURIComponent(
+                  `Наказ №${order.orderNumber} від ${order.date}\n\n${order.title}\n\n${order.text}`
+                )}"
+              >
+                📋
+              </button>
+            </div>
+
+          </div>
+
+          <div class="order-title">
+            ${order.title}
+          </div>
+
+          <div class="order-text">
+            ${order.text}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function fetchOrders(pib) {
+  const res = await fetch(
+    'https://script.google.com/macros/s/AKfycbxaGJM3J0JmOBoKe5GwwnKNt4vtuQi5TUn_EVky0KUHlZhq6DoWcIyrc6fQ19JIeElV3w/exec',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action: 'orders',
+        token: authToken,
+        pib
+      })
+    }
+  );
+
+  const result = await res.json();
+
+  if (result.error) {
+    if (
+      result.error.includes('Token verification')
+    ) {
+      alert('🔒 Сесія завершилась. Оновіть сторінку.');
+      location.reload();
+      return null;
+    }
+
+    throw new Error(result.error);
+  }
+
+  return result.orders || [];
+}
+
+async function switchDetailsContent(details, html) {
+  details.style.opacity = '0';
+  details.style.transform = 'translateY(6px)';
+
+  await new Promise(r => setTimeout(r, 120));
+
+  details.innerHTML = html;
+
+  requestAnimationFrame(() => {
+    details.style.maxHeight = details.scrollHeight + 'px';
+    details.style.opacity = '1';
+    details.style.transform = 'translateY(0)';
+  });
+}
+
+function toggle(btn, mode = 'details') {
   const card = btn.closest('.card');
   const details = card.querySelector('.details');
   const copyBtn = card.querySelector('.copy-all-btn');
@@ -486,24 +625,106 @@ function toggle(btn) {
   const index = card.dataset.index;
   const item = currentData[index];
 
-  const isOpen = details.classList.contains('open');
-
-  if (!details.innerHTML) {
-    details.innerHTML = buildDetailsHTML(item);
-  }
-
-  if (isOpen) {
-    details.style.maxHeight = null;
+  const buttons = card.querySelectorAll('.action-btn');
+  const isSameTab =
+    details.classList.contains('open') &&
+    details.dataset.mode === mode;
+  
+  // якщо натиснули ту саму вкладку → згортаємо
+  if (isSameTab) {
     details.classList.remove('open');
+    details.style.maxHeight = '0px';
+    details.style.opacity = '0';
+    details.style.transform = 'translateY(-6px)';
+  
+    buttons.forEach(b => b.classList.remove('active'));
     copyBtn.style.display = 'none';
-  } else {
-    details.classList.add('open');
-    details.style.maxHeight = details.scrollHeight + 'px';
-    copyBtn.style.display = 'inline-block';
+  
+    return;
   }
+  
+  // інакше відкриваємо / переключаємо
+  buttons.forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  
+  item.view = mode;
+  details.classList.add('open');
+
+  // Детальніше
+  if (mode === 'details') {
+    copyBtn.style.display = 'inline-block';
+
+    switchDetailsContent(
+      details,
+      buildDetailsHTML(item)
+    );
+
+    details.dataset.mode = 'details';
+    return;
+  }
+
+  // Стройові
+  copyBtn.style.display = 'none';
+
+  if (item.ordersLoaded) {
+    switchDetailsContent(
+      details,
+      renderOrdersHTML(item.orders)
+    );
+
+    details.dataset.mode = 'orders';
+    return;
+  }
+
+  if (item.ordersLoading) return;
+
+  item.ordersLoading = true;
+
+  switchDetailsContent(details, `
+    <div class="inline-loader">
+      <div class="inline-loader-wrap">
+        <div class="inline-loader-dot"></div>
+      </div>
+      <span>Завантаження історії наказів...</span>
+    </div>
+  `);
+
+  details.dataset.mode = 'orders';
+
+  fetchOrders(item.pib)
+    .then((orders) => {
+      item.orders = orders || [];
+      item.ordersLoaded = true;
+      item.ordersLoading = false;
+
+      const ordersBtn = card.querySelector('.orders-btn');
+      ordersBtn.innerHTML =
+        `📄 Стройові (${item.orders.length})`;
+
+      if (item.orders.length > 0) {
+        ordersBtn.classList.add('has-data');
+      }
+
+      switchDetailsContent(
+        details,
+        renderOrdersHTML(item.orders)
+      );
+    })
+    .catch((err) => {
+      console.error(err);
+      item.ordersLoading = false;
+
+      switchDetailsContent(details, `
+        <div style="
+          padding:16px 0;
+          color:#ff6b6b;
+        ">
+          ⚠️ Помилка завантаження
+        </div>
+      `);
+    });
 }
 
-// підгрузка
 function loadMore() {
   const next = currentData.slice(visibleCount, visibleCount + 30);
   if (next.length === 0) return;
@@ -512,14 +733,12 @@ function loadMore() {
   visibleCount += 30;
 }
 
-// скрол
 window.addEventListener('scroll', () => {
   if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
     loadMore();
   }
 });
 
-// пошук
 const searchInput = document.getElementById('search');
 const clearBtn = document.getElementById('clearSearch');
 
@@ -712,6 +931,10 @@ async function loadData(token) {
     render(currentData.slice(0, visibleCount));
     updateDashboard(data);
     updateMarksChart(data);
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    window.todayDateShort = `${dd}.${mm}`;
     renderBirthdays(result.birthdays);
     initAutoHideScroll();
 
@@ -729,6 +952,15 @@ async function loadData(token) {
 }
   
 document.addEventListener('click', function(e) {
+
+  if (e.target.classList.contains('order-copy-btn')) {
+    const text = decodeURIComponent(
+      e.target.dataset.order
+    );
+  
+    copyText(text);
+    return;
+  }
 
   // копіювання одного поля
   if (e.target.classList.contains('copy-btn')) {
