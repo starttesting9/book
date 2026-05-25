@@ -221,7 +221,7 @@ function renderBirthdays(items) {
   const otherHTML = `
     <div style="
       background:transparent;
-      padding:8px 10px 4px 0;
+      padding:8px 2px 4px;
     ">
   
       <div onclick="toggleDay(this)" class="bd-header">
@@ -280,33 +280,32 @@ function expandToday(el) {
 }
 
 function toggleDay(el) {
-  const content = el.nextElementSibling;
-  const arrow = el.querySelector('.bd-arrow');
 
-  const isOpen = content.classList.contains('open');
+  const content =
+    el.nextElementSibling;
+
+  const arrow =
+    el.querySelector('.bd-arrow');
+
+  const isOpen =
+    content.classList.contains('open');
 
   if (isOpen) {
-    content.style.height = content.scrollHeight + 'px';
-  
-    requestAnimationFrame(() => {
-      content.style.height = '0px';
-      content.style.overflowY = 'hidden';  
-    });
-  
+
+    content.style.maxHeight = '0px';
+    content.style.overflowY = 'hidden';
+
     content.classList.remove('open');
+
     arrow.style.transform = 'rotate(0deg)';
-  
+
   } else {
-    const fullHeight = content.scrollHeight;
-  
-    content.style.height = '0px';
-  
-    requestAnimationFrame(() => {
-      content.style.height = Math.min(fullHeight, 260) + 'px';
-      content.style.overflowY = 'auto';   
-    });
-  
+
     content.classList.add('open');
+
+    content.style.maxHeight = '200px';
+    content.style.overflowY = 'auto';
+
     arrow.style.transform = 'rotate(180deg)';
   }
 }
@@ -379,7 +378,6 @@ function getRankImage(item) {
 
   if (!rank) return '';
 
-  // точний збіг
   if (RANKS[rank]) {
     return RANKS[rank];
   }
@@ -393,7 +391,6 @@ function getRankImage(item) {
   return '';
 }
 
-// рендер
 function render(items, append = false) {
   const list = document.getElementById('list');
   
@@ -452,9 +449,19 @@ function render(items, append = false) {
         <button class="action-btn orders-btn" onclick="toggle(this, 'orders')">
           📄 Стройові${item.ordersLoaded ? ` (${item.orders.length})` : ''}
         </button>
+
+        <!--
+        <button class="action-btn social-btn" onclick="toggle(this, 'social')">
+          🗂️ Соц. дані
+        </button>
+        -->
       
-        <button class="copy-all-btn" style="display:none;">
-          📋 Копіювати
+        <button
+          class="copy-all-btn"
+          style="display:none;"
+          title="Копіювати все"
+        >
+          <span class="copy-icon">📋</span>
         </button>
       </div>
     
@@ -512,7 +519,7 @@ function renderOrdersHTML(orders) {
   if (!orders || !orders.length) {
     return `
       <div class="orders-empty">
-        📭 Дані по стройових наказах відсутні
+        📭 Дані відсутні
       </div>
     `;
   }
@@ -569,6 +576,84 @@ function renderOrdersHTML(orders) {
   `;
 }
 
+function renderSocialHTML(social) {
+
+  if (!social?.found) {
+    return `
+      <div class="orders-empty">
+        🗂️ Соціальні дані відсутні
+      </div>
+    `;
+  }
+
+  const data = social.data || {};
+
+  const photoLink = data['Лінк на фото'] || '';
+
+  let photoUrl = '';
+
+  const match = photoLink.match(/\/d\/([^/]+)/);
+
+  if (match?.[1]) {
+    photoUrl =
+      `https://lh3.googleusercontent.com/d/${match[1]}=w400`;
+  }
+
+  const filteredEntries =
+    Object.entries(data)
+      .filter(([key]) => key !== 'Лінк на фото');
+
+  return `
+    <div class="social-block">
+
+      ${
+        photoUrl
+          ? `
+            <img
+              src="${photoUrl}"
+              class="social-photo"
+              alt="Фото">
+          `
+          : `
+            <div class="social-photo-placeholder"></div>
+          `
+      }
+
+      <div class="social-list">
+        ${filteredEntries.map(([key, value]) => {
+
+          const safeValue = String(value)
+            .replace(/\r?\n/g, '<br>');
+
+          return `
+            <div class="detail-row">
+              <span class="detail-key">${key}</span>
+
+              <div class="detail-value">
+                <span class="copy-text">
+                  ${safeValue}
+                </span>
+
+                <button
+                  class="copy-btn"
+                  data-text="${encodeURIComponent(value)}"
+                >
+                  📋
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+    </div>
+  `;
+}
+
+function handleExpiredSession() {
+  showSessionModal();
+}
+
 async function fetchOrders(pib) {
   const res = await fetch(
     'https://script.google.com/macros/s/AKfycbxaGJM3J0JmOBoKe5GwwnKNt4vtuQi5TUn_EVky0KUHlZhq6DoWcIyrc6fQ19JIeElV3w/exec',
@@ -591,8 +676,7 @@ async function fetchOrders(pib) {
     if (
       result.error.includes('Token verification')
     ) {
-      alert('🔒 Сесія завершилась. Оновіть сторінку.');
-      location.reload();
+      handleExpiredSession();
       return null;
     }
 
@@ -600,6 +684,43 @@ async function fetchOrders(pib) {
   }
 
   return result.orders || [];
+}
+
+async function fetchSocial(pib) {
+  const res = await fetch(
+    'https://script.google.com/macros/s/AKfycbxaGJM3J0JmOBoKe5GwwnKNt4vtuQi5TUn_EVky0KUHlZhq6DoWcIyrc6fQ19JIeElV3w/exec',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action: 'social',
+        token: authToken,
+        pib
+      })
+    }
+  );
+
+  const result = await res.json();
+
+  if (result.error) {
+
+    if (
+      result.error.includes('Token verification')
+    ) {
+      handleExpiredSession();
+
+      return null;
+    }
+
+    throw new Error(result.error);
+  }
+
+  return result.social || {
+    found: false,
+    data: {}
+  };
 }
 
 async function switchDetailsContent(details, html) {
@@ -618,6 +739,7 @@ async function switchDetailsContent(details, html) {
 }
 
 function toggle(btn, mode = 'details') {
+
   const card = btn.closest('.card');
   const details = card.querySelector('.details');
   const copyBtn = card.querySelector('.copy-all-btn');
@@ -626,32 +748,37 @@ function toggle(btn, mode = 'details') {
   const item = currentData[index];
 
   const buttons = card.querySelectorAll('.action-btn');
+
   const isSameTab =
     details.classList.contains('open') &&
     details.dataset.mode === mode;
-  
-  // якщо натиснули ту саму вкладку → згортаємо
+
+  // закриття
   if (isSameTab) {
+
     details.classList.remove('open');
+
     details.style.maxHeight = '0px';
     details.style.opacity = '0';
     details.style.transform = 'translateY(-6px)';
-  
+
     buttons.forEach(b => b.classList.remove('active'));
+
     copyBtn.style.display = 'none';
-  
+
     return;
   }
-  
-  // інакше відкриваємо / переключаємо
+
+  // активна кнопка
   buttons.forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  
+
   item.view = mode;
+
   details.classList.add('open');
 
-  // Детальніше
   if (mode === 'details') {
+
     copyBtn.style.display = 'inline-block';
 
     switchDetailsContent(
@@ -660,69 +787,160 @@ function toggle(btn, mode = 'details') {
     );
 
     details.dataset.mode = 'details';
+
     return;
   }
 
-  // Стройові
-  copyBtn.style.display = 'none';
+  if (mode === 'orders') {
 
-  if (item.ordersLoaded) {
-    switchDetailsContent(
-      details,
-      renderOrdersHTML(item.orders)
-    );
+    copyBtn.style.display = 'none';
 
-    details.dataset.mode = 'orders';
-    return;
-  }
-
-  if (item.ordersLoading) return;
-
-  item.ordersLoading = true;
-
-  switchDetailsContent(details, `
-    <div class="inline-loader">
-      <div class="inline-loader-wrap">
-        <div class="inline-loader-dot"></div>
-      </div>
-      <span>Завантаження історії наказів...</span>
-    </div>
-  `);
-
-  details.dataset.mode = 'orders';
-
-  fetchOrders(item.pib)
-    .then((orders) => {
-      item.orders = orders || [];
-      item.ordersLoaded = true;
-      item.ordersLoading = false;
-
-      const ordersBtn = card.querySelector('.orders-btn');
-      ordersBtn.innerHTML =
-        `📄 Стройові (${item.orders.length})`;
-
-      if (item.orders.length > 0) {
-        ordersBtn.classList.add('has-data');
-      }
+    if (item.ordersLoaded) {
 
       switchDetailsContent(
         details,
         renderOrdersHTML(item.orders)
       );
-    })
-    .catch((err) => {
-      console.error(err);
-      item.ordersLoading = false;
 
-      switchDetailsContent(details, `
-        <div style="
-          padding:16px 0;
-          color:#ff6b6b;
-        ">
-          ⚠️ Помилка завантаження
+      details.dataset.mode = 'orders';
+
+      return;
+    }
+
+    if (item.ordersLoading) return;
+
+    item.ordersLoading = true;
+
+    switchDetailsContent(details, `
+      <div class="inline-loader">
+        <div class="inline-loader-wrap">
+          <div class="inline-loader-dot"></div>
         </div>
-      `);
-    });
+        <span>Завантаження історії...</span>
+      </div>
+    `);
+
+    details.dataset.mode = 'orders';
+
+    fetchOrders(item.pib)
+      .then((orders) => {
+
+        item.orders = orders || [];
+        item.ordersLoaded = true;
+        item.ordersLoading = false;
+
+        const ordersBtn =
+          card.querySelector('.orders-btn');
+
+        ordersBtn.innerHTML =
+          `📄 Стройові (${item.orders.length})`;
+
+        if (item.orders.length > 0) {
+          ordersBtn.classList.add('has-data');
+        }
+
+        switchDetailsContent(
+          details,
+          renderOrdersHTML(item.orders)
+        );
+      })
+      .catch((err) => {
+
+        console.error(err);
+
+        item.ordersLoading = false;
+
+        switchDetailsContent(details, `
+          <div style="
+            padding:16px 0;
+            color:#ff6b6b;
+          ">
+            ⚠️ Помилка завантаження
+          </div>
+        `);
+      });
+
+    return;
+  }
+
+  if (mode === 'social') {
+
+    if (item.socialLoaded && !item.social?.found) {
+      copyBtn.style.display = 'none';
+    } else {
+      copyBtn.style.display = 'inline-block';
+    }
+
+    if (item.socialLoaded) {
+
+      switchDetailsContent(
+        details,
+        renderSocialHTML(item.social)
+      );
+
+      details.dataset.mode = 'social';
+
+      return;
+    }
+
+    if (item.socialLoading) return;
+
+    item.socialLoading = true;
+
+    switchDetailsContent(details, `
+      <div class="inline-loader">
+        <div class="inline-loader-wrap">
+          <div class="inline-loader-dot"></div>
+        </div>
+        <span>Завантаження даних...</span>
+      </div>
+    `);
+
+    details.dataset.mode = 'social';
+
+    fetchSocial(item.pib)
+      .then((social) => {
+
+        item.social = social;
+        item.socialLoaded = true;
+        item.socialLoading = false;
+
+        if (social?.found) {
+          copyBtn.style.display = 'inline-block';
+        } else {
+          copyBtn.style.display = 'none';
+        }
+
+        const socialBtn =
+          card.querySelector('.social-btn');
+
+        if (social?.found) {
+          socialBtn.classList.add('has-data');
+        }
+
+        switchDetailsContent(
+          details,
+          renderSocialHTML(social)
+        );
+      })
+      .catch((err) => {
+
+        console.error(err);
+
+        item.socialLoading = false;
+
+        switchDetailsContent(details, `
+          <div style="
+            padding:16px 0;
+            color:#ff6b6b;
+          ">
+            ⚠️ Помилка завантаження
+          </div>
+        `);
+      });
+
+    return;
+  }
 }
 
 function loadMore() {
@@ -969,8 +1187,10 @@ document.addEventListener('click', function(e) {
   }
 
   // копіювання ВСЬОГО блоку
-  if (e.target.classList.contains('copy-all-btn')) {
-    const wrapper = e.target.parentElement;
+  const copyAllBtn = e.target.closest('.copy-all-btn');
+
+  if (copyAllBtn) {
+    const wrapper = copyAllBtn.parentElement;
     const details = wrapper.nextElementSibling;
 
     const rows = details.querySelectorAll('.detail-row');
@@ -1037,4 +1257,27 @@ function initTheme(){
       dark ? '☀️' : '🌙';
   };
 }
+
+function showSessionModal() {
+
+  const modal =
+    document.getElementById('sessionModal');
+
+  modal.classList.add('show');
+
+  const confirmBtn =
+    modal.querySelector('.confirm');
+
+  const cancelBtn =
+    modal.querySelector('.cancel');
+
+  confirmBtn.onclick = () => {
+    location.reload();
+  };
+
+  cancelBtn.onclick = () => {
+    modal.classList.remove('show');
+  };
+}
+  
 initTheme();
